@@ -146,6 +146,26 @@ impl DisplayConnection {
         )
     }
 
+    /// Only Wayland has a session lock (`ext-session-lock-v1`).
+    #[cfg(all(target_os = "linux", feature = "wayland"))]
+    pub(crate) fn lock_session(
+        &self,
+        on_event: Box<dyn FnMut(gpui::session_lock::SessionLockEvent)>,
+    ) -> anyhow::Result<()> {
+        match self {
+            DisplayConnection::Wayland(connection) => connection.lock_session(on_event),
+            _ => Err(gpui::session_lock::SessionLockNotSupportedError.into()),
+        }
+    }
+
+    #[cfg(all(target_os = "linux", feature = "wayland"))]
+    pub(crate) fn unlock_session(&self) -> anyhow::Result<()> {
+        match self {
+            DisplayConnection::Wayland(connection) => connection.unlock_session(),
+            _ => Err(gpui::session_lock::SessionLockNotSupportedError.into()),
+        }
+    }
+
     pub(crate) fn active_window(&self) -> Option<AnyWindowHandle> {
         dispatch!(self, connection => connection.active_window(), headless => None)
     }

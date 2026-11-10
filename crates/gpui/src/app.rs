@@ -1328,6 +1328,45 @@ impl App {
         &self.keyboard_mapper
     }
 
+    /// Asks the compositor to lock the session with `ext-session-lock-v1`. Then open a
+    /// [`WindowKind::SessionLock`] window on every display. `on_event` is called with the
+    /// compositor's answer, [`SessionLockEvent::Locked`] or [`SessionLockEvent::Finished`],
+    /// and with any later event of this lock. See [`session_lock`](crate::session_lock).
+    ///
+    /// Fails if the compositor doesn't support the protocol or a lock is already held.
+    ///
+    /// [`SessionLockEvent::Locked`]: crate::session_lock::SessionLockEvent::Locked
+    /// [`SessionLockEvent::Finished`]: crate::session_lock::SessionLockEvent::Finished
+    #[cfg(all(target_os = "linux", feature = "wayland"))]
+    pub fn lock_session(
+        &self,
+        on_event: impl FnMut(crate::session_lock::SessionLockEvent, &mut App) + 'static,
+    ) -> Result<()> {
+        let app = self.this.clone();
+        let executor = self.foreground_executor().clone();
+        let on_event = Rc::new(RefCell::new(on_event));
+        self.platform.lock_session(Box::new(move |event| {
+            let app = app.clone();
+            let on_event = on_event.clone();
+            // The platform reports events while dispatching compositor events, so defer the
+            // handler to run with the app available.
+            executor
+                .spawn(async move {
+                    if let Some(app) = app.upgrade() {
+                        (on_event.borrow_mut())(event, &mut app.borrow_mut());
+                    }
+                })
+                .detach();
+        }))
+    }
+
+    /// Unlocks the session locked with [`App::lock_session`]. Close the lock windows
+    /// afterwards. Fails if the session isn't locked by this app.
+    #[cfg(all(target_os = "linux", feature = "wayland"))]
+    pub fn unlock_session(&self) -> Result<()> {
+        self.platform.unlock_session()
+    }
+
     /// Invokes a handler when the current keyboard layout changes
     pub fn on_keyboard_layout_change<F>(&self, mut callback: F) -> Subscription
     where

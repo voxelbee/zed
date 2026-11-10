@@ -598,6 +598,19 @@ impl Platform for LinuxPlatform {
         self.with_common(|common| common.callbacks.keyboard_layout_change = Some(callback));
     }
 
+    #[cfg(all(target_os = "linux", feature = "wayland"))]
+    fn lock_session(
+        &self,
+        on_event: Box<dyn FnMut(gpui::session_lock::SessionLockEvent)>,
+    ) -> Result<()> {
+        self.connection.borrow().lock_session(on_event)
+    }
+
+    #[cfg(all(target_os = "linux", feature = "wayland"))]
+    fn unlock_session(&self) -> Result<()> {
+        self.connection.borrow().unlock_session()
+    }
+
     fn on_thermal_state_change(&self, _callback: Box<dyn FnMut()>) {}
 
     fn thermal_state(&self) -> ThermalState {
