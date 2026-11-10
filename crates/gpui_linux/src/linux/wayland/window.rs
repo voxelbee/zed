@@ -458,9 +458,20 @@ impl WaylandSurfaceState {
             WaylandSurfaceState::Xdg(WaylandXdgSurfaceState { xdg_surface, .. }) => {
                 xdg_surface.set_window_geometry(x, y, width, height);
             }
-            WaylandSurfaceState::LayerShell(WaylandLayerSurfaceState { layer_surface, .. }) => {
-                // cannot set window position of a layer surface
-                layer_surface.set_size(width as u32, height as u32);
+            WaylandSurfaceState::LayerShell(WaylandLayerSurfaceState {
+                layer_surface,
+                anchor,
+            }) => {
+                // cannot set window position of a layer surface. An axis stretched between
+                // two opposite anchors is sized by the compositor: send 0 for it, as the
+                // protocol intends. Sending the current pixel size instead can feed a stale
+                // (e.g. display-sized) value back to the compositor.
+                let stretched_w = anchor.contains(Anchor::LEFT) && anchor.contains(Anchor::RIGHT);
+                let stretched_h = anchor.contains(Anchor::TOP) && anchor.contains(Anchor::BOTTOM);
+                layer_surface.set_size(
+                    if stretched_w { 0 } else { width as u32 },
+                    if stretched_h { 0 } else { height as u32 },
+                );
             }
             WaylandSurfaceState::Popup(WaylandPopupSurfaceState { xdg_surface, .. }) => {
                 xdg_surface.set_window_geometry(x, y, width, height);
